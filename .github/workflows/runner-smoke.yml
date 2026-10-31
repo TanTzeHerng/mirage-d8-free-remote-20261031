@@ -12,3 +12,7 @@ jobs:
           echo "CLOUD_RUNNER_ACTIVE $(hostname)"
           uname -a
           nproc
+          sudo apt-get update -qq
+          sudo apt-get install -y mame
+          /usr/games/mame -version
+          /usr/games/mame -listfull mmirage
