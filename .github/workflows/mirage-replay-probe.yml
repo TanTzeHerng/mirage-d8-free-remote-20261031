@@ -1,0 +1,38 @@
+name: Probe Mirage full-history move entry
+on:
+  push:
+    paths:
+      - '.github/workflows/mirage-replay-probe.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install genuine emulator and restore ROM
+        env:
+          ROM_B64: ${{ secrets.MIRAGE_ROM_B64 }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y mame
+          mkdir -p mame/roms
+          printf '%s' "$ROM_B64" | base64 -d > mame/roms/mmirage.zip
+          unzip -t mame/roms/mmirage.zip
+      - name: Enter legal moves via ENT without Mirage search
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('mirage_replay_probe.lua')
+          p.write_text(p.read_text().replace('@@BASE@@',str(Path.cwd())+'/'))
+          PY
+          /usr/games/mame mmirage -rompath ./mame/roms -noreadconfig -nowriteconfig -nothrottle -nosleep -video none -sound none -skip_gameinfo -autoboot_delay 1 -autoboot_script "$(pwd)/mirage_replay_probe.lua"
+          cat worker.out
+          grep -q REPLAY_PROBE_FINISHED worker.out
+      - name: Save Mirage original firmware replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mirage-replay-validation
+          path: worker.out
