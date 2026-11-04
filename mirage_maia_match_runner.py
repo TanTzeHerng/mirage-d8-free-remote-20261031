@@ -17,13 +17,37 @@ def log(*a):
 def atomic_write(path,data):
     p=Path(path);tmp=p.with_name(p.name+'.tmp')
     tmp.write_text(data,encoding='utf-8');tmp.replace(p)
+def current_batch_start():
+    p=OUT/'batch_state.json'
+    start=1
+    if p.exists():start=int(json.loads(p.read_text())['next_opening_id'])
+    # Advance only after all eight games in the current batch have actual chess results.
+    while start<=81523:
+        ids=[(x-1)*2+j for x in range(start,min(start+4,81524)) for j in (1,2)]
+        if not ids:break
+        all_finished=True
+        for gid in ids:
+            p=OUT/('game_%06d'%gid)/'status.json'
+            if not p.exists():
+                all_finished=False;break
+            state=json.loads(p.read_text())
+            if state['status']!='finished' or state['chess_result']=='*':
+                all_finished=False;break
+        if not all_finished:break
+        start+=4
+    atomic_write(OUT/'batch_state.json',json.dumps({'next_opening_id':start})+'\n')
+    return start
 def load_book_seeds(k=4):
+    start=current_batch_start()
+    if start>81523:return []
     out=[]
     with (ROOT/'opening_lines.jsonl').open(encoding='utf8') as f:
         for line in f:
-            data=json.loads(line);out.append(data)
+            data=json.loads(line)
+            if int(data['id'])<start:continue
+            out.append(data)
             if len(out)==k:break
-    assert len(out)==k
+    assert len(out)==min(k,81524-start)
     for x in out:
         b=chess.Board()
         for u in x['uci']:
@@ -170,14 +194,27 @@ def write_state(gid,seed,board,color,error_count,status,error=None,mirage_thinks
     pg.headers['Result']=result_state(board)
     atomic_write(wd/'current.pgn',str(pg)+'\n')
 def play_game(gid,seed,color,maia):
-    moves=list(seed['uci'])
-    board=chess.Board()
-    for u in moves:board.push_uci(u)
-    errors=0;last_think=None
-    log('GAME_START',gid,'opening',seed['id'],'mirage_color',('white' if color else 'black'),
-        'book_plies',len(moves),'fen',board.fen())
-    write_state(gid,seed,board,color,errors,'starting')
     wd=OUT/('game_%06d'%gid)
+    state_file=wd/'status.json'
+    previous=json.loads(state_file.read_text()) if state_file.exists() else None
+    if previous and previous.get('status')=='finished' and previous.get('chess_result')!='*':
+        log('CHESS_RESULT_ALREADY_CHECKPOINTED',gid,previous['chess_result'])
+        return
+    moves=list(previous.get('move_history_uci',seed['uci'])) if previous else list(seed['uci'])
+    if moves[:len(seed['uci'])]!=list(seed['uci']):
+        raise ValueError('Saved game does not match its opening-book line '+str(gid))
+    board=chess.Board()
+    for u in moves:
+        m=chess.Move.from_uci(u)
+        if m not in board.legal_moves:
+            raise ValueError('Saved move is illegal '+u+' for game '+str(gid))
+        board.push(m)
+    errors=int(previous.get('technical_error_count',0)) if previous else 0
+    last_think=previous.get('last_mirage_emulated_seconds') if previous else None
+    log('GAME_RESUME' if previous else 'GAME_START',gid,'opening',seed['id'],
+        'mirage_color',('white' if color else 'black'),
+        'book_plies',len(seed['uci']),'fen',board.fen())
+    write_state(gid,seed,board,color,errors,'starting')
     while time.monotonic()<DEADLINE:
         if board.outcome(claim_draw=True):
             log('CHESS_RESULT',gid,result_state(board),'plies',len(board.move_stack))
@@ -234,13 +271,15 @@ def play_game(gid,seed,color,maia):
     log('GAME_PAUSED',gid,'plies',len(board.move_stack),'no game scored')
 def main():
     seeds=load_book_seeds(4)
+    if not seeds:
+        log('ALL_BOOK_OPENINGS_COMPLETED');return
     maia=Maia()
     try:
         with ThreadPoolExecutor(max_workers=8) as pool:
             f=[]
             for i,seed in enumerate(seeds):
                 for j,color in enumerate((True,False)):
-                    f.append(pool.submit(play_game,i*2+j+1,seed,color,maia))
+                    f.append(pool.submit(play_game,(seed["id"]-1)*2+j+1,seed,color,maia))
             for x in f:x.result()
     finally:maia.close()
     summary=[]
@@ -248,6 +287,7 @@ def main():
         summary.append(json.loads(p.read_text()))
     scored=[x for x in summary if x['status']=='finished' and x['chess_result']!='*']
     results={'planned_full_book_paired_games':163046,
+             'next_opening_id':current_batch_start(),
              'launched_games':len(summary),'completed_real_chess_games':len(scored),
              'results_by_game':[{'id':x['game_id'],'result':x['chess_result']} for x in scored],
              'games':summary}
