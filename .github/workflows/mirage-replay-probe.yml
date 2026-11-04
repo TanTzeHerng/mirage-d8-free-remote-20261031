@@ -27,6 +27,7 @@ jobs:
           p=Path('mirage_replay_probe.lua')
           p.write_text(p.read_text().replace('@@BASE@@',str(Path.cwd())+'/'))
           PY
+          touch job.txt
           /usr/games/mame mmirage -rompath ./mame/roms -noreadconfig -nowriteconfig -nothrottle -nosleep -video none -sound none -skip_gameinfo -autoboot_delay 1 -autoboot_script "$(pwd)/mirage_replay_probe.lua"
           cat worker.out
           grep -q REPLAY_PROBE_FINISHED worker.out
