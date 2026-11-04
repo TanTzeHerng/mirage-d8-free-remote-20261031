@@ -1,0 +1,84 @@
+name: Mirage D8 Maia3 79M autonomous checkpoint continuation
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '59 * * * *'
+concurrency:
+  group: mirage-maia-continuous-only
+  cancel-in-progress: false
+jobs:
+  resume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore latest verified game checkpoints from previous hosted run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          id=$(gh api "repos/$REPO/actions/artifacts?name=mirage-maia-paired-real-games&per_page=100" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty')
+          if [ -z "$id" ]; then
+            echo "FIRST_RUN_NO_PRIOR_CHECKPOINT"
+          else
+            echo "RECOVERING_ARTIFACT_ID=$id"
+            gh api -H 'Accept: application/vnd.github+json' "repos/$REPO/actions/artifacts/$id/zip" > /tmp/mirage-maia-prior.zip
+            unzip -o /tmp/mirage-maia-prior.zip -d .
+            test -d match_data
+            echo "PRIOR_MATCH_CHECKPOINT_RECOVERED"
+            find match_data -name status.json -maxdepth 2 | head -10
+          fi
+      - name: Install original ROM emulator and legal chess arbiter
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y mame
+          python -m pip install python-chess
+          /usr/games/mame -listfull mmirage
+      - name: Restore encrypted genuine Mirage firmware
+        env:
+          ROM_B64: ${{ secrets.MIRAGE_ROM_B64 }}
+        run: |
+          test -n "$ROM_B64"
+          mkdir -p mame/roms
+          printf '%s' "$ROM_B64" | base64 -d > mame/roms/mmirage.zip
+          unzip -t mame/roms/mmirage.zip
+      - name: Verify complete original Variety book opening coverage
+        run: |
+          curl -fLsS --retry 3 -o Variety.zip https://github.com/ChrisWhittington/polyglot-books/releases/download/v1.0/Variety.zip
+          unzip -o Variety.zip
+          echo "5a30bc27b5e7b7d51694bf35e7d5dd2536b54e9b25ea3ea64ef4a2b982d5e21c  Variety.bin" | sha256sum -c -
+          python -u enumerate_variety.py
+          grep -q '"leaf_openings": 81523' opening_schedule_summary.json
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/huggingface
+          key: maia3-79m-genuine-20261105
+      - name: Install original Maia3 79M UCI
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'git+https://github.com/CSSLab/maia3.git'
+          python -m py_compile mirage_maia_match_runner.py mirage_maia_cloud_preflight.py
+      - name: Continue paired games from exact saved legal positions
+        env:
+          MATCH_BUDGET_SECONDS: '3200'
+          MIRAGE_EMULATOR: /usr/games/mame
+          HF_HOME: ${{ runner.temp }}/huggingface
+          OMP_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+        run: python -u mirage_maia_match_runner.py
+      - name: Persist all real chess results and incomplete-game checkpoints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mirage-maia-paired-real-games
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            match_data/
+            opening_schedule_summary.json
