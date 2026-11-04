@@ -1,0 +1,38 @@
+name: Verify Mirage replayed-book search
+on:
+  push:
+    paths:
+      - '.github/workflows/mirage-replay-search.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install genuine emulator and restore ROM
+        env:
+          ROM_B64: ${{ secrets.MIRAGE_ROM_B64 }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y mame
+          mkdir -p mame/roms
+          printf '%s' "$ROM_B64" | base64 -d > mame/roms/mmirage.zip
+      - name: Play 1.e4 e5 via ENT and ask real Mirage for its response
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('mirage_replay_search.lua')
+          p.write_text(p.read_text().replace('@@BASE@@',str(Path.cwd())+'/'))
+          Path('job.txt').touch()
+          PY
+          /usr/games/mame mmirage -rompath ./mame/roms -noreadconfig -nowriteconfig -nothrottle -nosleep -video none -sound none -skip_gameinfo -autoboot_delay 1 -autoboot_script "$(pwd)/mirage_replay_search.lua"
+          cat worker.out
+          grep -q REPLAY_SEARCH_MOVE worker.out
+      - name: Save full search diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replayed-mirage-search
+          path: worker.out
