@@ -1,0 +1,61 @@
+name: Mirage D8 vs Maia3 79M paired chess games
+on:
+  push:
+    paths:
+      - '.github/workflows/mirage-maia-scored-pilot.yml'
+  workflow_dispatch:
+jobs:
+  games:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install genuine MAME and python-chess
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y mame
+          python -m pip install --upgrade pip
+          python -m pip install python-chess
+          /usr/games/mame -listfull mmirage
+      - name: Restore genuine Mirage ROM from encrypted secret
+        env:
+          ROM_B64: ${{ secrets.MIRAGE_ROM_B64 }}
+        run: |
+          test -n "$ROM_B64"
+          mkdir -p mame/roms
+          printf '%s' "$ROM_B64" | base64 -d > mame/roms/mmirage.zip
+          unzip -t mame/roms/mmirage.zip
+      - name: Fetch SHA-verified Variety opening book
+        run: |
+          curl -fL --retry 3 -o Variety.zip https://github.com/ChrisWhittington/polyglot-books/releases/download/v1.0/Variety.zip
+          unzip -o Variety.zip
+          echo "5a30bc27b5e7b7d51694bf35e7d5dd2536b54e9b25ea3ea64ef4a2b982d5e21c  Variety.bin" | sha256sum -c -
+          python -u enumerate_variety.py
+          grep -q '"leaf_openings": 81523' opening_schedule_summary.json
+      - name: Install official Maia3 79M CPU model
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'git+https://github.com/CSSLab/maia3.git'
+      - name: Play eight genuine concurrent chess games
+        env:
+          MATCH_BUDGET_SECONDS: '3200'
+          MIRAGE_EMULATOR: /usr/games/mame
+          HF_HOME: ${{ runner.temp }}/huggingface
+          OMP_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+        run: python -u mirage_maia_match_runner.py
+      - name: Save real chess PGNs and recoverable checkpoints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mirage-maia-paired-real-games
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            match_data/
+            opening_schedule_summary.json
