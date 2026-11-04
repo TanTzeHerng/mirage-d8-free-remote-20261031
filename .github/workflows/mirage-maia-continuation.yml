@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 65
     permissions:
-      contents: read
+      contents: write
       actions: read
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +47,9 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y mame
           python -m pip install python-chess
           /usr/games/mame -listfull mmirage
+      - name: Merge verified live PGN positions with artifact checkpoints
+        if: steps.restore.outputs.skip != 'true'
+        run: python -u restore_live_pgndata.py
       - name: Restore encrypted genuine Mirage firmware
         if: steps.restore.outputs.skip != 'true'
         env:
@@ -74,7 +77,7 @@ jobs:
         run: |
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install 'git+https://github.com/CSSLab/maia3.git'
-          python -m py_compile mirage_maia_match_runner.py mirage_maia_cloud_preflight.py
+          python -m py_compile mirage_maia_match_runner.py mirage_maia_cloud_preflight.py live_pgn_sync.py restore_live_pgndata.py
       - name: Continue paired games from exact saved legal positions
         if: steps.restore.outputs.skip != 'true'
         env:
@@ -84,7 +87,18 @@ jobs:
           OMP_NUM_THREADS: '1'
           MKL_NUM_THREADS: '1'
           OPENBLAS_NUM_THREADS: '1'
-        run: python -u mirage_maia_match_runner.py
+        run: |
+          mkdir -p match_data
+          python -u live_pgn_sync.py
+          python -u live_pgn_sync.py --watch --interval 15 > match_data/live_pgn_publisher.log 2>&1 &
+          SYNC_PID=$!
+          cleanup() {
+            kill "$SYNC_PID" 2>/dev/null || true
+            wait "$SYNC_PID" 2>/dev/null || true
+            python -u live_pgn_sync.py || true
+          }
+          trap cleanup EXIT
+          python -u mirage_maia_match_runner.py
       - name: Persist all real chess results and incomplete-game checkpoints
         if: always() && steps.restore.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
