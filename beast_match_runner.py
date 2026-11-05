@@ -158,9 +158,8 @@ class MirageSession:
         for m in moves:b.push_uci(m)
         mode='MIRAGE' if b.turn==mirage_color else 'MAIA'  # Native driver protocol keyword for external opponent
         atomic_write(wd/'start_mode.txt',mode+'\n')
-        lua=(ROOT/'mirage_beast_game_driver.lua').read_text()
-        assert '@@BASE@@' in lua
-        atomic_write(wd/'game_driver.lua',lua.replace('@@BASE@@',str(wd.resolve())+'/'))
+        # The native C++ controller reads the job and book files directly.
+        # Unlike MAME, it does not use or require a Lua driver.
         cmd=[NATIVE_BINARY,str(wd.resolve()),NATIVE_ROM]
         self.out=open(wd/'mame_stdout.log','ab')
         self.err=open(wd/'mame_stderr.log','ab')
