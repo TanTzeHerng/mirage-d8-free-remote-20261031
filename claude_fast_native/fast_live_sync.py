@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import chess, chess.pgn
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "match_fast_data"
 WORKTREE = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "mirage_maia_claude_fast_worktree"
 
