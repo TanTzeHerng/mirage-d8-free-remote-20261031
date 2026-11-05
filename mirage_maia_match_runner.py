@@ -9,7 +9,6 @@ import chess,chess.pgn
 ROOT=Path(__file__).resolve().parent
 OUT=ROOT/'match_data'
 OUT.mkdir(exist_ok=True)
-DEADLINE=time.monotonic()+int(os.getenv('MATCH_BUDGET_SECONDS','3200'))
 EMULATOR=os.getenv('MIRAGE_EMULATOR','/usr/games/mame')
 PRINT_LOCK=threading.Lock()
 def log(*a):
@@ -79,9 +78,9 @@ class Maia:
     def _send(self,s):
         self.p.stdin.write(s+'\n');self.p.stdin.flush()
     def _expect(self,pattern,seconds):
-        expiry=time.monotonic()+seconds
-        while time.monotonic()<expiry:
-            try:s=self.q.get(timeout=min(2,max(.02,expiry-time.monotonic())))
+        expiry=time.monotonic()+seconds if seconds is not None else None
+        while expiry is None or time.monotonic()<expiry:
+            try:s=self.q.get(timeout=2 if expiry is None else min(2,max(.02,expiry-time.monotonic())))
             except queue.Empty:
                 if self.p.poll() is not None:raise RuntimeError('Maia exited '+str(self.p.returncode))
                 continue
@@ -90,12 +89,11 @@ class Maia:
         raise TimeoutError('Maia no response '+pattern)
     def move(self,board):
         with self.lock:
-            if time.monotonic()>=DEADLINE:raise TimeoutError('Runner budget')
             # Full move history, not a static FEN: Maia 3's UCI history mode is enabled.
             moves=' '.join(m.uci() for m in board.move_stack)
             self._send('position startpos moves '+moves)
             self._send('go nodes 1')
-            msg=self._expect(r'^bestmove [a-h][1-8][a-h][1-8][qrbn]?(?: |$)',360)
+            msg=self._expect(r'^bestmove [a-h][1-8][a-h][1-8][qrbn]?(?: |$)',None)
             u=msg.split()[1]
             m=chess.Move.from_uci(u)
             if m not in board.legal_moves:raise ValueError('Maia illegal move '+u+' '+board.fen())
@@ -143,7 +141,7 @@ class MirageSession:
         self.leftover=rows.pop()
         return rows
     def await_mirage(self):
-        while time.monotonic()<DEADLINE:
+        while True:
             for line in self.events():
                 if line.startswith('LUA_ERROR'):raise RuntimeError(line)
                 if line.startswith('MOVE '):
@@ -153,7 +151,6 @@ class MirageSession:
             if self.proc.poll() is not None:
                 raise RuntimeError('Mirage exited during search rc='+str(self.proc.returncode))
             time.sleep(.8)
-        raise TimeoutError('Runner budget during Mirage search')
     def close(self):
         try:
             if self.proc and self.proc.poll() is None:
@@ -215,7 +212,7 @@ def play_game(gid,seed,color,maia):
         'mirage_color',('white' if color else 'black'),
         'book_plies',len(seed['uci']),'fen',board.fen())
     write_state(gid,seed,board,color,errors,'starting')
-    while time.monotonic()<DEADLINE:
+    while True:
         if board.outcome(claim_draw=True):
             log('CHESS_RESULT',gid,result_state(board),'plies',len(board.move_stack))
             write_state(gid,seed,board,color,errors,'finished',mirage_thinks=last_think)
@@ -224,7 +221,7 @@ def play_game(gid,seed,color,maia):
         try:
             session=MirageSession(wd,[m.uci() for m in board.move_stack],color)
             write_state(gid,seed,board,color,errors,'active',mirage_thinks=last_think)
-            while time.monotonic()<DEADLINE:
+            while True:
                 if board.outcome(claim_draw=True):
                     write_state(gid,seed,board,color,errors,'finished',mirage_thinks=last_think)
                     log('CHESS_RESULT',gid,result_state(board))
@@ -251,9 +248,6 @@ def play_game(gid,seed,color,maia):
                 write_state(gid,seed,board,color,errors,'active',mirage_thinks=last_think)
             break
         except TimeoutError as e:
-            if time.monotonic()>=DEADLINE:
-                write_state(gid,seed,board,color,errors,'paused',str(e),last_think)
-                return
             errors+=1
             log('TECHNICAL_RETRY',gid,str(e))
             write_state(gid,seed,board,color,errors,'recovering',str(e),last_think)
@@ -267,8 +261,6 @@ def play_game(gid,seed,color,maia):
             time.sleep(min(15,errors*2))
         finally:
             if session:session.close()
-    write_state(gid,seed,board,color,errors,'paused','Time budget exhausted',last_think)
-    log('GAME_PAUSED',gid,'plies',len(board.move_stack),'no game scored')
 def main():
     seeds=load_book_seeds(4)
     if not seeds:
