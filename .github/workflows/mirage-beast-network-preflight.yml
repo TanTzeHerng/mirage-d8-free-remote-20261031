@@ -14,11 +14,9 @@ jobs:
       - name: Install official Lc0 CPU engine and chess verifier
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y lc0 libopenblas0
+          bash beast_match/install_lc0.sh
           python -m pip install chess cryptography
-          command -v lc0
-          lc0 --version || true
+          engine_bin/lc0 --version || true
       - name: Download encrypted Beast network parts and verify original checksum
         env:
           GH_TOKEN: ${{ github.token }}
@@ -32,7 +30,7 @@ jobs:
         run: |
           python - <<'PY'
           import chess,os,re,subprocess,time,queue,threading
-          engine="/usr/games/lc0"
+          engine="engine_bin/lc0"
           assert os.path.isfile(engine)
           p=subprocess.Popen([engine,"--weights="+os.path.abspath("Beast.pb.gz"),
               "--backend=blas","--threads=1"],stdin=subprocess.PIPE,
