@@ -1,0 +1,22 @@
+name: Retire old Mirage-Maia run for Beast replacement
+on:
+  push:
+    paths:
+      - '.github/workflows/retire-maia-now.yml'
+  workflow_dispatch:
+permissions:
+  actions: write
+concurrency:
+  group: fresh-claude-native-mirage-maia
+  cancel-in-progress: true
+jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Request cancellation of previous Maia run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api --method POST "repos/$REPO/actions/runs/41966424201/cancel" || true
+          echo "Old Maia game scores remain archived in match-claude-fast."
