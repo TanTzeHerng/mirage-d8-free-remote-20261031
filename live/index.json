@@ -1,5 +1,5 @@
 {
-  "published_utc": "2026-11-05T04:33:08.492203+00:00",
+  "published_utc": "2026-11-05T04:33:25.492476+00:00",
   "source_run_id": "41966424201",
   "games": [
     {
@@ -88,8 +88,8 @@
       "opening_id": 5,
       "status": "active",
       "result": "*",
-      "total_plies": 81,
-      "last_move_utc": "2026-11-05T04:32:34Z",
+      "total_plies": 83,
+      "last_move_utc": "2026-11-05T04:33:11Z",
       "pgn": "live/game_000010.pgn"
     },
     {
@@ -124,8 +124,8 @@
       "opening_id": 7,
       "status": "active",
       "result": "*",
-      "total_plies": 75,
-      "last_move_utc": "2026-11-05T04:32:37Z",
+      "total_plies": 77,
+      "last_move_utc": "2026-11-05T04:33:14Z",
       "pgn": "live/game_000014.pgn"
     },
     {
@@ -140,10 +140,10 @@
     {
       "game_id": 16,
       "opening_id": 8,
-      "status": "active",
-      "result": "*",
-      "total_plies": 71,
-      "last_move_utc": "2026-11-05T04:33:07Z",
+      "status": "finished",
+      "result": "0-1",
+      "total_plies": 78,
+      "last_move_utc": "2026-11-05T04:33:19Z",
       "pgn": "live/game_000016.pgn"
     },
     {
@@ -160,9 +160,18 @@
       "opening_id": 9,
       "status": "active",
       "result": "*",
-      "total_plies": 28,
-      "last_move_utc": "2026-11-05T04:33:07Z",
+      "total_plies": 29,
+      "last_move_utc": "2026-11-05T04:33:09Z",
       "pgn": "live/game_000018.pgn"
+    },
+    {
+      "game_id": 19,
+      "opening_id": 10,
+      "status": "active",
+      "result": "*",
+      "total_plies": 20,
+      "last_move_utc": "2026-11-05T04:33:21Z",
+      "pgn": "live/game_000019.pgn"
     }
   ],
   "slots": {
@@ -171,20 +180,27 @@
     "5": 13,
     "6": 14,
     "7": 15,
-    "8": 16,
     "4": 17,
-    "1": 18
+    "1": 18,
+    "8": 19
   },
   "score": {
-    "mirage_wins": 9,
+    "mirage_wins": 10,
     "maia_wins": 1,
     "draws": 0,
-    "completed_chess_games": 10,
-    "mirage_points": 9.0,
+    "completed_chess_games": 11,
+    "mirage_points": 10.0,
     "maia_points": 1.0,
     "duplicate_results_included": true
   },
   "recent_results": [
+    {
+      "game_id": 16,
+      "result": "0-1",
+      "mirage_color": "black",
+      "opening_id": 8,
+      "time_utc": "2026-11-05T04:33:19Z"
+    },
     {
       "game_id": 9,
       "result": "1-0",
@@ -256,6 +272,6 @@
       "time_utc": "2026-11-05T03:16:37Z"
     }
   ],
-  "assigned_game_count": 18,
-  "completed_chess_games": 10
+  "assigned_game_count": 19,
+  "completed_chess_games": 11
 }
