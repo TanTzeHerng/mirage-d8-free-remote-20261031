@@ -1,8 +1,6 @@
 name: Mirage D8 Maia3 79M autonomous checkpoint continuation
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '59 * * * *'
 concurrency:
   group: mirage-maia-continuous-only
   cancel-in-progress: false
