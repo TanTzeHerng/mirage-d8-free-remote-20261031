@@ -1,0 +1,112 @@
+name: Fresh Claude ultra-fast Mirage D8 vs Beast 1-node with live PGNs
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '19 */6 * * *'
+concurrency:
+  group: fresh-claude-native-mirage-beast
+  cancel-in-progress: false
+jobs:
+  native_match:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install chess arbiter and recover only this fresh match's own checkpoints
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python -m pip install python-chess
+          id=$(gh api "repos/$REPO/actions/artifacts?name=claude-beast-mirage-real-chess&per_page=100" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty')
+          if [ -n "$id" ]; then
+            echo "RECOVERING_FRESH_MATCH_ARTIFACT_ID=$id"
+            gh api -H 'Accept: application/vnd.github+json' "repos/$REPO/actions/artifacts/$id/zip" > /tmp/claude-fast-previous.zip
+            unzip -o /tmp/claude-fast-previous.zip -d .
+            test -d match_beast_data
+          else
+            echo "CLEAN_MATCH_NO_PRIOR_CHECKPOINT"
+          fi
+          python -u beast_match/restore.py
+      - name: Restore original G79 firmware from protected secret
+        env:
+          ROM_B64: ${{ secrets.MIRAGE_ROM_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$ROM_B64"
+          mkdir -p mame/roms
+          printf '%s' "$ROM_B64" | base64 -d > mame/roms/mmirage.zip
+          python - <<'PY'
+          import zipfile,pathlib
+          with zipfile.ZipFile('mame/roms/mmirage.zip') as z:
+              members=[x for x in z.infolist() if x.file_size==32768 and 'g79' in x.filename.lower()]
+              assert len(members)==1
+              pathlib.Path('claude_fast_native/g79').write_bytes(z.read(members[0]))
+          print('PROTECTED_CLAUDE_G79_READY')
+          PY
+      - name: Verify complete Variety book for fresh paired games
+        run: |
+          curl -fLsS --retry 3 -o Variety.zip https://github.com/ChrisWhittington/polyglot-books/releases/download/v1.0/Variety.zip
+          unzip -o Variety.zip
+          echo '5a30bc27b5e7b7d51694bf35e7d5dd2536b54e9b25ea3ea64ef4a2b982d5e21c  Variety.bin' | sha256sum -c -
+          python -u enumerate_variety.py
+          grep -q '"leaf_openings": 81523' opening_schedule_summary.json
+      - name: Install official Lc0 CPU backend and crypto validator
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y lc0 libopenblas0
+          python -m pip install cryptography
+          test -x /usr/games/lc0
+      - name: Restore exact user-supplied Beast net from authenticated encrypted release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEAST_AES256_HEX: ${{ secrets.BEAST_AES256_HEX }}
+        run: |
+          set -euo pipefail
+          mkdir -p beast_encrypted
+          gh release download beast-net-encrypted-20261105 -R "$GITHUB_REPOSITORY" -D beast_encrypted --clobber
+          python -u beast_match/stage_weights.py
+      - name: Build Claude native Mirage CPU and Beast chess runner
+        run: |
+          g++ -O3 -march=native -std=gnu++17 -pthread \
+            -o claude_fast_native/mm_game_driver \
+            claude_fast_native/mm_game_driver.cpp claude_fast_native/mm_core.cpp
+          python -m py_compile beast_match_runner.py beast_match/stage_weights.py beast_match/live_sync.py beast_match/restore.py
+      - name: Play up to eight concurrent Mirage Beast games and publish live PGNs every 15 seconds
+        env:
+          BEAST_NET: ${{ github.workspace }}/Beast.pb.gz
+          BEAST_BINARY: /usr/games/lc0
+          OMP_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MIRAGE_NATIVE_BINARY: ${{ github.workspace }}/claude_fast_native/mm_game_driver
+          MIRAGE_NATIVE_ROM: ${{ github.workspace }}/claude_fast_native/g79
+        run: |
+          set -euo pipefail
+          mkdir -p match_beast_data
+          python -u beast_match/live_sync.py --watch --interval 15 > match_beast_data/live_pgn_publisher.log 2>&1 &
+          SYNC_PID=$!
+          cleanup() {
+            kill "$SYNC_PID" 2>/dev/null || true
+            wait "$SYNC_PID" 2>/dev/null || true
+            python -u beast_match/live_sync.py || true
+          }
+          trap cleanup EXIT
+          python -u beast_match_runner.py
+      - name: Persist authentic chess results and partial checkpoints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-beast-mirage-real-chess
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            match_beast_data/
+            opening_schedule_summary.json
