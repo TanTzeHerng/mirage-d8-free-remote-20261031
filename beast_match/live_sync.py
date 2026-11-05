@@ -55,6 +55,7 @@ def snapshot():
     changed = False
     games = []
     pgn_parts = []
+    live_search = {}
     for status_path in sorted(DATA.glob("game_*/status.json")):
         verified = verified_game(status_path)
         if not verified:
@@ -63,6 +64,28 @@ def snapshot():
         status, pgn_text = verified
         gid = int(status["game_id"])
         name = f"game_{gid:06d}"
+        # A completed-move time is NOT the emulated time of the current search.
+        # The native emulator independently checkpoints its firmware timer
+        # every 30 emulated seconds. Only publish a snapshot newer than the
+        # latest arbiter status, and only when it is Mirage's turn to think.
+        search_file = status_path.parent / "native_search_state.json"
+        if status["status"] == "active" and search_file.is_file():
+            try:
+                side_to_move = status["fen"].split()[1]
+                mirage_turn = side_to_move == ("w" if status["mirage_color"] == "white" else "b")
+                snapshot_mtime = search_file.stat().st_mtime_ns
+                if mirage_turn and snapshot_mtime > status_path.stat().st_mtime_ns:
+                    info = json.loads(search_file.read_text(encoding="utf8"))
+                    seconds = float(info["emulated_search_seconds"])
+                    if info.get("format") == "MRGCPU01" and 0 <= seconds < 10**9:
+                        live_search[str(gid)] = {
+                            "emulated_seconds": round(seconds, 3),
+                            "observed_utc": datetime.fromtimestamp(
+                                snapshot_mtime / 1e9, tz=timezone.utc).isoformat(),
+                            "source": "native_mirage_cpu_snapshot",
+                        }
+            except (ValueError, KeyError, OSError, TypeError) as exc:
+                print("LIVE_SEARCH_SNAPSHOT_SKIP", gid, repr(exc), flush=True)
         changed |= update_file(WORKTREE / "live" / (name + ".pgn"), pgn_text)
         changed |= update_file(WORKTREE / "live" / (name + ".json"), json.dumps(status, indent=2) + "\n")
         games.append({"game_id": gid, "opening_id": status["opening_id"],
@@ -111,6 +134,8 @@ def snapshot():
     # Save the score and display-slot mapping even if no new move occurred.
     stats_path=WORKTREE/"live"/"slot_score.json"
     changed |= update_file(stats_path,json.dumps(stats,indent=2)+"\n")
+    changed |= update_file(WORKTREE/"live"/"current_search.json",
+                           json.dumps(live_search,indent=2,sort_keys=True)+"\n")
     # Publish the durable next-game counter too, so interruptions cannot omit
     # openings allocated shortly before a runner was terminated.
     if schedule_path.exists():
@@ -121,7 +146,7 @@ def snapshot():
     update_file(WORKTREE / "live" / "all_games.pgn", "\n\n".join(pgn_parts) + "\n")
     index = {"published_utc": datetime.now(timezone.utc).isoformat(),
              "source_run_id": os.getenv("GITHUB_RUN_ID", "seeded"),
-             "games": games,"slots":slots,"score":score,
+             "games": games,"slots":slots,"score":score,"live_search":live_search,
              "recent_results":recent_results,"assigned_game_count":len(all_states),
              "completed_chess_games":len(completed)}
     update_file(WORKTREE / "live" / "index.json", json.dumps(index, indent=2) + "\n")
