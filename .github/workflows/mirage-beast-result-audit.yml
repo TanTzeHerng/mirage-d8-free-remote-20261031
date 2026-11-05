@@ -1,6 +1,9 @@
 name: Independent audit of all Mirage Beast chess results
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/mirage-beast-result-audit.yml'
 jobs:
   verify_published_results:
     runs-on: ubuntu-24.04
