@@ -105,7 +105,7 @@ int main(int argc,char** argv) {
         if(cmd.rfind("MOVE ",0)!=0 || cmd.size()!=9)throw std::runtime_error("Invalid command "+cmd);
         std::string move=cmd.substr(5);
         queue_move(h,move,true);
-        h.call([&](Machine&){
+        h.call([&,move](Machine&){
           emit("OPP_ACK "+move);
           started=now();last_prog=started;last_display.clear();stable_since=started;searching=true;
           emit("SEARCH_START "+std::to_string(started));
