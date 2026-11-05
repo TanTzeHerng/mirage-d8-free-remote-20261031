@@ -2,7 +2,7 @@
 The full Variety.bin leaf opening is entered with ENT, preserving game history.
 Only python-chess-confirmed chess results score; technical errors replay and retry.
 """
-import os,re,json,sys,time,threading,queue,subprocess,traceback
+import os,re,json,sys,time,threading,queue,subprocess,traceback,shutil,hashlib
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import chess,chess.pgn
@@ -146,7 +146,9 @@ class MirageSession:
         self.out=None;self.err=None
         wd.mkdir(parents=True,exist_ok=True)
         for f in wd.glob('cmd_*.txt'):f.unlink()
-        for f in ('worker.out','mame_stdout.log','mame_stderr.log'):
+        for f in ('worker.out','mame_stdout.log','mame_stderr.log',
+                  'native_search_state.bin','native_search_state.json',
+                  'native_search_state.bin.tmp','native_search_state.json.tmp'):
             (wd/f).unlink(missing_ok=True)
         atomic_write(wd/'job.txt','')
         atomic_write(wd/'book_moves.txt','\n'.join(moves)+'\n')
@@ -223,6 +225,39 @@ def write_state(gid,seed,board,color,error_count,status,error=None,mirage_thinks
     pg.headers['MaiaElo']='2600'
     pg.headers['Result']=result_state(board)
     atomic_write(wd/'current.pgn',str(pg)+'\n')
+def hard_recovery_archive(gid,board,errors,reason):
+    """Save one game's full legal state, search-memory snapshot and diagnostics.
+    Firmware-internal snapshot is preserved for analysis, not falsely reloaded.
+    Hard reset replays the complete legal move history and searches afresh.
+    """
+    wd=OUT/("game_%06d"%gid)
+    dest=wd/"recovery"/("attempt_%06d"%errors)
+    dest.mkdir(parents=True,exist_ok=True)
+    protected=("status.json","current.pgn","worker.out","mame_stdout.log",
+               "mame_stderr.log","native_search_state.bin",
+               "native_search_state.json","book_moves.txt","start_mode.txt")
+    saved=[]
+    for filename in protected:
+        src=wd/filename
+        if src.is_file():
+            try:
+                shutil.copy2(src,dest/filename)
+                saved.append(filename)
+            except OSError as exc:
+                log("RECOVERY_COPY_ERROR",gid,filename,str(exc))
+    info={"game_id":gid,"attempt":errors,"reason":str(reason),
+          "utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
+          "fen":board.fen(),"uci_history":[m.uci() for m in board.move_stack],
+          "legal_position_saved":True,
+          "native_search_snapshot_saved":"native_search_state.bin" in saved,
+          "native_snapshot_reloaded":False,
+          "restart":"hard_reset_worker_and_replay_legal_game_then_fresh_search",
+          "saved_files":saved}
+    atomic_write(dest/"recovery_manifest.json",json.dumps(info,indent=2)+"\n")
+    atomic_write(wd/"recovery_status.json",json.dumps(info,indent=2)+"\n")
+    log("GAME_HARD_RECOVERY",gid,"attempt",errors,"snapshots",saved,
+        "search_restart_from_fen",board.fen())
+
 def play_game(gid,seed,color,maia):
     wd=OUT/('game_%06d'%gid)
     state_file=wd/'status.json'
@@ -280,20 +315,29 @@ def play_game(gid,seed,color,maia):
                         session.commands('MOVE '+m.uci()[:4])
                 write_state(gid,seed,board,color,errors,'active',mirage_thinks=last_think)
             break
-        except TimeoutError as e:
-            errors+=1
-            log('TECHNICAL_RETRY',gid,str(e))
-            write_state(gid,seed,board,color,errors,'recovering',str(e),last_think)
         except Exception as e:
             errors+=1
-            log('TECHNICAL_RETRY',gid,str(e))
-            with (wd/'technical_errors.log').open('a') as f:
-                f.write(time.strftime('%FT%TZ',time.gmtime())+' '+repr(e)+'\n')
-                traceback.print_exc(file=f)
-            write_state(gid,seed,board,color,errors,'recovering',str(e),last_think)
-            time.sleep(min(15,errors*2))
+            log("TECHNICAL_RESET",gid,"attempt",errors,repr(e))
+            write_state(gid,seed,board,color,errors,"recovering",str(e),last_think)
+            with (wd/"technical_errors.log").open("a",encoding="utf8") as file:
+                file.write(time.strftime("%FT%TZ",time.gmtime())+" "+repr(e)+"\n")
+                traceback.print_exc(file=file)
         finally:
-            if session:session.close()
+            if session:
+                try:
+                    session.close()
+                except Exception as close_error:
+                    log("GAME_WORKER_CLOSE_ERROR",gid,str(close_error))
+        # Game-specific reset only: all other Mirage processes and Maia keep running.
+        # Preserve the firmware's latest CPU/RAM/search diagnostic BEFORE fresh replay.
+        try:
+            hard_recovery_archive(gid,board,errors,e)
+        except Exception as archive_error:
+            log("GAME_RECOVERY_ARCHIVE_FAILED",gid,repr(archive_error))
+        # No chess result is assigned for an emulator or controller problem.
+        # After resetting only this worker, replay the complete UCI history.
+        time.sleep(min(15,errors*2))
+
 def main():
     seeds=load_all_book_seeds()
     scheduler=GameScheduler(seeds)
