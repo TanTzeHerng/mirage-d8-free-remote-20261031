@@ -17,9 +17,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install chess arbiter and recover only this fresh match's own live branch
+      - name: Install chess arbiter and recover only this fresh match's own checkpoints
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
           python -m pip install python-chess
+          id=$(gh api "repos/$REPO/actions/artifacts?name=claude-fast-mirage-maia-real-chess&per_page=100" --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty')
+          if [ -n "$id" ]; then
+            echo "RECOVERING_FRESH_MATCH_ARTIFACT_ID=$id"
+            gh api -H 'Accept: application/vnd.github+json' "repos/$REPO/actions/artifacts/$id/zip" > /tmp/claude-fast-previous.zip
+            unzip -o /tmp/claude-fast-previous.zip -d .
+            test -d match_fast_data
+          else
+            echo "CLEAN_MATCH_NO_PRIOR_CHECKPOINT"
+          fi
           python -u claude_fast_native/fast_restore.py
       - name: Restore original G79 firmware from protected secret
         env:
