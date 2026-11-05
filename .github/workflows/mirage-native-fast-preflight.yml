@@ -46,3 +46,28 @@ jobs:
           grep -q "BOOK_DONE 2" /tmp/claude-fast-test/worker.out
           grep -q "SEARCH_START" /tmp/claude-fast-test/worker.out
           echo "CLAUDE_NATIVE_D8_OPENING_AND_SEARCH_VALIDATED"
+      - name: Replay complete archived Game 8 including queen promotions
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin match-claude-fast
+          git show origin/match-claude-fast:live/game_000008.json > /tmp/claude-fast-game8.json
+          mkdir -p /tmp/claude-fast-game8
+          python - <<'PY'
+          import json,pathlib
+          s=json.load(open('/tmp/claude-fast-game8.json'))
+          moves=s['move_history_uci']
+          assert len(moves)>=81 and 'g7f8q' in moves and 'c2c1q' in moves
+          root=pathlib.Path('/tmp/claude-fast-game8')
+          (root/'book_moves.txt').write_text('\n'.join(moves)+'\n')
+          (root/'start_mode.txt').write_text('MIRAGE\n')
+          (root/'job.txt').write_text('')
+          print('GAME8_FULL_HISTORY_QUEEN_PROMOTIONS',len(moves),flush=True)
+          PY
+          timeout 65s claude_fast_native/mm_game_driver /tmp/claude-fast-game8 "$PWD/claude_fast_native/g79" > /tmp/claude-fast-game8/stdout.log 2>&1 || test "$?" -eq 124
+          tail -25 /tmp/claude-fast-game8/stdout.log
+          grep -q "BOOK_DONE" /tmp/claude-fast-game8/worker.out
+          grep -q "SEARCH_START" /tmp/claude-fast-game8/worker.out
+          test -f /tmp/claude-fast-game8/native_search_state.bin
+          test -f /tmp/claude-fast-game8/native_search_state.json
+          echo "GAME8_PROMOTION_REPLAY_NATIVE_CPU_SNAPSHOT_VALIDATED"
+
