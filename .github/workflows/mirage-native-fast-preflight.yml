@@ -71,3 +71,30 @@ jobs:
           test -f /tmp/claude-fast-game8/native_search_state.json
           echo "GAME8_PROMOTION_REPLAY_NATIVE_CPU_SNAPSHOT_VALIDATED"
 
+
+      - name: Verify eight-slot replenishment and recovery code syntax
+        run: |
+          python -m pip install python-chess
+          python -m py_compile claude_fast_match_runner.py claude_fast_native/fast_live_sync.py claude_fast_native/fast_restore.py
+          python - <<'PY'
+          import tempfile, pathlib, json
+          import claude_fast_match_runner as game
+          oldout=game.OUT
+          with tempfile.TemporaryDirectory() as temp:
+              game.OUT=pathlib.Path(temp)
+              game.SCHEDULER_PATH=game.OUT/'scheduler.json'
+              for gid in range(1,9):
+                  wd=game.OUT/('game_%06d'%gid)
+                  wd.mkdir()
+                  final=gid!=8
+                  (wd/'status.json').write_text(json.dumps({
+                      'game_id':gid,'status':'finished' if final else 'recovering',
+                      'chess_result':'1-0' if final else '*'}))
+              scheduler=game.GameScheduler([{} for _ in range(16)])
+              ids=[scheduler.claim(slot) for slot in range(1,9)]
+              assert ids==[9,10,11,12,13,14,15,8],ids
+              scheduler2=game.GameScheduler([{} for _ in range(16)])
+              assert [scheduler2.claim(i) for i in range(1,9)]==ids
+              print('EIGHT_SLOTS_REFILLED_UNFINISHED_GAME_8_PRESERVED',ids,flush=True)
+          game.OUT=oldout
+          PY
