@@ -7,7 +7,6 @@ on:
 jobs:
   games:
     runs-on: ubuntu-24.04
-    timeout-minutes: 65
     permissions:
       contents: read
     steps:
@@ -42,7 +41,6 @@ jobs:
           python -m pip install 'git+https://github.com/CSSLab/maia3.git'
       - name: Play eight genuine concurrent chess games
         env:
-          MATCH_BUDGET_SECONDS: '3200'
           MIRAGE_EMULATOR: /usr/games/mame
           HF_HOME: ${{ runner.temp }}/huggingface
           OMP_NUM_THREADS: '1'
