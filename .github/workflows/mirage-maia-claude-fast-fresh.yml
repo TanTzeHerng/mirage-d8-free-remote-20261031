@@ -1,0 +1,90 @@
+name: Fresh Claude ultra-fast Mirage D8 vs Maia3 79M with live PGNs
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+concurrency:
+  group: fresh-claude-native-mirage-maia
+  cancel-in-progress: false
+jobs:
+  native_match:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install chess arbiter and recover only this fresh match's own live branch
+        run: |
+          python -m pip install python-chess
+          python -u claude_fast_native/fast_restore.py
+      - name: Restore original G79 firmware from protected secret
+        env:
+          ROM_B64: ${{ secrets.MIRAGE_ROM_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$ROM_B64"
+          mkdir -p mame/roms
+          printf '%s' "$ROM_B64" | base64 -d > mame/roms/mmirage.zip
+          python - <<'PY'
+          import zipfile,pathlib
+          with zipfile.ZipFile('mame/roms/mmirage.zip') as z:
+              members=[x for x in z.infolist() if x.file_size==32768 and 'g79' in x.filename.lower()]
+              assert len(members)==1
+              pathlib.Path('claude_fast_native/g79').write_bytes(z.read(members[0]))
+          print('PROTECTED_CLAUDE_G79_READY')
+          PY
+      - name: Verify complete Variety book for fresh paired games
+        run: |
+          curl -fLsS --retry 3 -o Variety.zip https://github.com/ChrisWhittington/polyglot-books/releases/download/v1.0/Variety.zip
+          unzip -o Variety.zip
+          echo '5a30bc27b5e7b7d51694bf35e7d5dd2536b54e9b25ea3ea64ef4a2b982d5e21c  Variety.bin' | sha256sum -c -
+          python -u enumerate_variety.py
+          grep -q '"leaf_openings": 81523' opening_schedule_summary.json
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/huggingface
+          key: official-maia3-79m-cpu-20261105
+      - name: Install official Maia3 79M with one-node deterministic UCI
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install 'git+https://github.com/CSSLab/maia3.git'
+      - name: Build Claude native Mirage CPU with its exact original fast path
+        run: |
+          g++ -O3 -march=native -std=gnu++17 -pthread \
+            -o claude_fast_native/mm_game_driver \
+            claude_fast_native/mm_game_driver.cpp claude_fast_native/mm_core.cpp
+          python -m py_compile claude_fast_match_runner.py claude_fast_native/fast_live_sync.py
+      - name: Play up to eight concurrent games and publish live PGNs every 15 seconds
+        env:
+          HF_HOME: ${{ runner.temp }}/huggingface
+          OMP_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MIRAGE_NATIVE_BINARY: ${{ github.workspace }}/claude_fast_native/mm_game_driver
+          MIRAGE_NATIVE_ROM: ${{ github.workspace }}/claude_fast_native/g79
+        run: |
+          set -euo pipefail
+          mkdir -p match_fast_data
+          python -u claude_fast_native/fast_live_sync.py --watch --interval 15 > match_fast_data/live_pgn_publisher.log 2>&1 &
+          SYNC_PID=$!
+          cleanup() {
+            kill "$SYNC_PID" 2>/dev/null || true
+            wait "$SYNC_PID" 2>/dev/null || true
+            python -u claude_fast_native/fast_live_sync.py || true
+          }
+          trap cleanup EXIT
+          python -u claude_fast_match_runner.py
+      - name: Persist authentic chess results and partial checkpoints
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-fast-mirage-maia-real-chess
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            match_fast_data/
+            opening_schedule_summary.json
