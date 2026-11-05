@@ -71,13 +71,54 @@ def snapshot():
                       "last_move_utc": status["time_utc"],
                       "pgn": "live/" + name + ".pgn"})
         pgn_parts.append(pgn_text.rstrip())
+    # Game identity is not the dashboard slot. A finished game immediately
+    # releases its slot for the next unplayed opening/color assignment.
+    schedule_path=DATA/"scheduler.json"
+    if schedule_path.exists():
+        schedule=json.loads(schedule_path.read_text(encoding="utf8"))
+        slots={str(k):int(v) for k,v in schedule.get("slots",{}).items()}
+    else:
+        slots={str(i):i for i in range(1,9)}
+    all_states=[x[0] for x in [
+        verified_game(p) or ({},None)
+        for p in sorted(DATA.glob("game_*/status.json"))
+    ] if x]
+    completed=[g for g in all_states if g.get("status")=="finished"
+               and g.get("chess_result") in ("1-0","0-1","1/2-1/2")]
+    mirage_wins=0
+    maia_wins=0
+    draws=0
+    for g in completed:
+        result=g["chess_result"]
+        if result=="1/2-1/2":
+            draws+=1
+        elif ((result=="1-0")==(g["mirage_color"]=="white")):
+            mirage_wins+=1
+        else:
+            maia_wins+=1
+    score={"mirage_wins":mirage_wins,"maia_wins":maia_wins,
+           "draws":draws,"completed_chess_games":len(completed),
+           "mirage_points":mirage_wins+draws/2,
+           "maia_points":maia_wins+draws/2,
+           "duplicate_results_included":True}
+    recent=sorted(completed,key=lambda g:g.get("time_utc",""),reverse=True)[:16]
+    recent_results=[{"game_id":g["game_id"],"result":g["chess_result"],
+                    "mirage_color":g["mirage_color"],
+                    "opening_id":g["opening_id"],"time_utc":g["time_utc"]}
+                    for g in recent]
+    stats={"slots":slots,"score":score,"recent_results":recent_results,
+           "assigned_game_count":len(all_states)}
+    # Save the score and display-slot mapping even if no new move occurred.
+    stats_path=WORKTREE/"live"/"slot_score.json"
+    changed |= update_file(stats_path,json.dumps(stats,indent=2)+"\n")
     if not changed:
         return False
     update_file(WORKTREE / "live" / "all_games.pgn", "\n\n".join(pgn_parts) + "\n")
     index = {"published_utc": datetime.now(timezone.utc).isoformat(),
              "source_run_id": os.getenv("GITHUB_RUN_ID", "seeded"),
-             "games": games, "completed_chess_games":
-             sum(g["status"] == "finished" and g["result"] != "*" for g in games)}
+             "games": games,"slots":slots,"score":score,
+             "recent_results":recent_results,"assigned_game_count":len(all_states),
+             "completed_chess_games":len(completed)}
     update_file(WORKTREE / "live" / "index.json", json.dumps(index, indent=2) + "\n")
     cmd("add", "live", cwd=WORKTREE)
     if cmd("diff", "--cached", "--quiet", cwd=WORKTREE, check=False).returncode == 0:
