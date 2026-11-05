@@ -111,6 +111,11 @@ def snapshot():
     # Save the score and display-slot mapping even if no new move occurred.
     stats_path=WORKTREE/"live"/"slot_score.json"
     changed |= update_file(stats_path,json.dumps(stats,indent=2)+"\n")
+    # Publish the durable next-game counter too, so interruptions cannot omit
+    # openings allocated shortly before a runner was terminated.
+    if schedule_path.exists():
+        changed |= update_file(WORKTREE/"live"/"scheduler.json",
+                               schedule_path.read_text(encoding="utf8"))
     if not changed:
         return False
     update_file(WORKTREE / "live" / "all_games.pgn", "\n\n".join(pgn_parts) + "\n")
