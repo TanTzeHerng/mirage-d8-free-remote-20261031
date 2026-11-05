@@ -1,0 +1,73 @@
+name: Verify genuine Beast 1-node network for Mirage match
+on:
+  workflow_dispatch:
+jobs:
+  beast_preflight:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install official Lc0 CPU engine and chess verifier
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y lc0 libopenblas0
+          python -m pip install chess cryptography
+          command -v lc0
+          lc0 --version || true
+      - name: Download encrypted Beast network parts and verify original checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEAST_AES256_HEX: ${{ secrets.BEAST_AES256_HEX }}
+        run: |
+          set -euo pipefail
+          mkdir -p beast_encrypted
+          gh release download beast-net-encrypted-20261105 -R "$GITHUB_REPOSITORY" -D beast_encrypted --clobber
+          python -u beast_match/stage_weights.py
+      - name: Confirm Beast returns legal move using exactly one node
+        run: |
+          python - <<'PY'
+          import chess,os,re,subprocess,time,queue,threading
+          engine="/usr/games/lc0"
+          assert os.path.isfile(engine)
+          p=subprocess.Popen([engine,"--weights="+os.path.abspath("Beast.pb.gz"),
+              "--backend=blas","--threads=1"],stdin=subprocess.PIPE,
+              stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+          q=queue.Queue()
+          def reader():
+              for line in p.stdout:q.put(line.strip())
+          threading.Thread(target=reader,daemon=True).start()
+          def command(text):p.stdin.write(text+"\n");p.stdin.flush()
+          def expect(pattern,timeout=120):
+              deadline=time.monotonic()+timeout
+              while time.monotonic()<deadline:
+                  try:line=q.get(timeout=2)
+                  except queue.Empty:
+                      if p.poll() is not None:raise RuntimeError("Lc0 exited with "+str(p.returncode))
+                      continue
+                  if re.search(pattern,line):return line
+              raise TimeoutError(pattern)
+          try:
+              command("uci");expect(r"^uciok$")
+              command("setoption name Threads value 1")
+              command("isready");expect(r"^readyok$",150)
+              command("position startpos");command("go nodes 1")
+              best=expect(r"^bestmove [a-h][1-8][a-h][1-8][qrbn]?(?: |$)",120)
+              m=chess.Move.from_uci(best.split()[1])
+              assert m in chess.Board().legal_moves, best
+              print("BEAST_ORIGINAL_NETWORK_ONE_NODE_LEGAL_MOVE",best,flush=True)
+          finally:
+              command("quit")
+              p.wait(timeout=15)
+          PY
+      - name: Compile Claude ultra-fast native Mirage D8 core
+        run: |
+          g++ -O3 -march=native -std=gnu++17 -pthread \
+            -o claude_fast_native/mm_game_driver \
+            claude_fast_native/mm_game_driver.cpp claude_fast_native/mm_core.cpp
+          test -x claude_fast_native/mm_game_driver
+          python -m py_compile beast_match_runner.py beast_match/live_sync.py beast_match/restore.py
