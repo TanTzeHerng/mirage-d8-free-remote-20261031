@@ -60,10 +60,9 @@ jobs:
       - name: Install official Lc0 CPU backend and crypto validator
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y lc0 libopenblas0
+          bash beast_match/install_lc0.sh
           python -m pip install cryptography
-          test -x /usr/games/lc0
+          test -x engine_bin/lc0
       - name: Restore exact user-supplied Beast net from authenticated encrypted release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -82,7 +81,7 @@ jobs:
       - name: Play up to eight concurrent Mirage Beast games and publish live PGNs every 15 seconds
         env:
           BEAST_NET: ${{ github.workspace }}/Beast.pb.gz
-          BEAST_BINARY: /usr/games/lc0
+          BEAST_BINARY: ${{ github.workspace }}/engine_bin/lc0
           OMP_NUM_THREADS: '1'
           MKL_NUM_THREADS: '1'
           OPENBLAS_NUM_THREADS: '1'
