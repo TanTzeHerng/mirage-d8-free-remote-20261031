@@ -57,12 +57,24 @@ jobs:
           echo '5a30bc27b5e7b7d51694bf35e7d5dd2536b54e9b25ea3ea64ef4a2b982d5e21c  Variety.bin' | sha256sum -c -
           python -u enumerate_variety.py
           grep -q '"leaf_openings": 81523' opening_schedule_summary.json
+      - name: Restore cached official Lc0 CPU engine
+        id: lc0-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: engine_bin/lc0
+          key: lc0-cpu-blas-v0.32.1-ubuntu24-v1
       - name: Install official Lc0 CPU backend and crypto validator
         run: |
           set -euo pipefail
           bash beast_match/install_lc0.sh
           python -m pip install cryptography
           test -x engine_bin/lc0
+      - name: Save compiled Lc0 CPU engine for future cloud runners
+        if: steps.lc0-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: engine_bin/lc0
+          key: lc0-cpu-blas-v0.32.1-ubuntu24-v1
       - name: Restore exact user-supplied Beast net from authenticated encrypted release
         env:
           GH_TOKEN: ${{ github.token }}
