@@ -17,44 +17,79 @@ def log(*a):
 def atomic_write(path,data):
     p=Path(path);tmp=p.with_name(p.name+'.tmp')
     tmp.write_text(data,encoding='utf-8');tmp.replace(p)
-def current_batch_start():
-    p=OUT/'batch_state.json'
-    start=1
-    if p.exists():start=int(json.loads(p.read_text())['next_opening_id'])
-    # Advance only after all eight games in the current batch have actual chess results.
-    while start<=81523:
-        ids=[(x-1)*2+j for x in range(start,min(start+4,81524)) for j in (1,2)]
-        if not ids:break
-        all_finished=True
-        for gid in ids:
-            p=OUT/('game_%06d'%gid)/'status.json'
-            if not p.exists():
-                all_finished=False;break
-            state=json.loads(p.read_text())
-            if state['status']!='finished' or state['chess_result']=='*':
-                all_finished=False;break
-        if not all_finished:break
-        start+=4
-    atomic_write(OUT/'batch_state.json',json.dumps({'next_opening_id':start})+'\n')
-    return start
-def load_book_seeds(k=4):
-    start=current_batch_start()
-    if start>81523:return []
-    out=[]
-    with (ROOT/'opening_lines.jsonl').open(encoding='utf8') as f:
-        for line in f:
-            data=json.loads(line)
-            if int(data['id'])<start:continue
-            out.append(data)
-            if len(out)==k:break
-    assert len(out)==min(k,81524-start)
-    for x in out:
-        b=chess.Board()
-        for u in x['uci']:
-            m=chess.Move.from_uci(u)
-            if m not in b.legal_moves:raise ValueError('Invalid opening '+str(x))
-            b.push(m)
-    return out
+# Eight independently replenished worker slots; every book leaf is paired once.
+MAX_CONCURRENT_GAMES = 8
+SCHEDULER_PATH = OUT / "scheduler.json"
+def load_all_book_seeds():
+    with (ROOT / "opening_lines.jsonl").open(encoding="utf8") as f:
+        seeds=[json.loads(line) for line in f]
+    if len(seeds)!=81523:
+        raise ValueError("Variety book enumeration does not have 81523 leaf lines")
+    for i,seed in enumerate(seeds,1):
+        if int(seed["id"])!=i:
+            raise ValueError("Book opening IDs are not contiguous at "+str(i))
+    return seeds
+
+class GameScheduler:
+    """Slot ownership is checkpointed before starting each new game."""
+    def __init__(self, seeds):
+        self.lock=threading.Lock()
+        self.max_gid=2*len(seeds)
+        existing={}
+        for path in OUT.glob("game_*/status.json"):
+            try:
+                state=json.loads(path.read_text(encoding="utf8"))
+                existing[int(state["game_id"])]=state
+            except (ValueError,KeyError):
+                raise RuntimeError("Invalid persistent game status "+str(path))
+        self.next_game_id=max(9,max(existing,default=0)+1)
+        if SCHEDULER_PATH.is_file():
+            saved=json.loads(SCHEDULER_PATH.read_text(encoding="utf8"))
+            self.next_game_id=max(self.next_game_id,int(saved["next_game_id"]))
+            self.slots={str(int(k)):int(v) for k,v in saved["slots"].items()
+                        if 1<=int(k)<=MAX_CONCURRENT_GAMES and 1<=int(v)<=self.max_gid}
+        else:
+            self.slots={str(i):i for i in range(1,MAX_CONCURRENT_GAMES+1)}
+        self.existing=existing
+        self._save()
+    def _save(self):
+        assigned=list(self.slots.values())
+        if len(assigned)!=len(set(assigned)):
+            raise RuntimeError("A game was assigned to more than one slot")
+        state={"version":1,"next_game_id":self.next_game_id,
+               "slots":self.slots,"max_game_id":self.max_gid,
+               "updated_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())}
+        atomic_write(SCHEDULER_PATH,json.dumps(state,indent=2)+"\n")
+    def _is_finished(self,gid):
+        status=OUT/("game_%06d"%gid)/"status.json"
+        if not status.exists():return False
+        state=json.loads(status.read_text(encoding="utf8"))
+        return state.get("status")=="finished" and state.get("chess_result") not in (None,"*")
+    def claim(self,slot):
+        key=str(slot)
+        with self.lock:
+            gid=self.slots.get(key)
+            if gid is not None and not self._is_finished(gid):
+                return gid
+            self.slots.pop(key,None)
+            owned=set(self.slots.values())
+            # Recover unfinished games even if a preceding run ended between
+            # game assignment and a scheduler-state checkpoint.
+            pending=sorted(g for g in self.existing if g not in owned
+                           and not self._is_finished(g))
+            if pending:
+                gid=pending[0]
+                self.existing.pop(gid,None)
+            elif self.next_game_id<=self.max_gid:
+                gid=self.next_game_id
+                self.next_game_id+=1
+            else:
+                self._save()
+                return None
+            self.slots[key]=gid
+            self._save()
+            return gid
+
 class Maia:
     def __init__(self):
         self.lock=threading.Lock();self.q=queue.Queue()
@@ -260,27 +295,39 @@ def play_game(gid,seed,color,maia):
         finally:
             if session:session.close()
 def main():
-    seeds=load_book_seeds(4)
-    if not seeds:
-        log('ALL_BOOK_OPENINGS_COMPLETED');return
+    seeds=load_all_book_seeds()
+    scheduler=GameScheduler(seeds)
     maia=Maia()
+    def run_slot(slot):
+        while True:
+            gid=scheduler.claim(slot)
+            if gid is None:
+                log("BOOK_SLOT_COMPLETE",slot)
+                return
+            seed=seeds[(gid-1)//2]
+            color=(gid%2==1)
+            log("SLOT_ASSIGN",slot,"game",gid,"opening",seed["id"],
+                "mirage",("white" if color else "black"))
+            play_game(gid,seed,color,maia)
+            state=json.loads((OUT/("game_%06d"%gid)/"status.json").read_text())
+            if state["status"]!="finished" or state["chess_result"]=="*":
+                raise RuntimeError("Slot returned without a chess result "+str(gid))
+            log("SLOT_CHESS_RESULT",slot,gid,state["chess_result"],
+                "reserving_next_game_immediately")
     try:
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            f=[]
-            for i,seed in enumerate(seeds):
-                for j,color in enumerate((True,False)):
-                    f.append(pool.submit(play_game,(seed["id"]-1)*2+j+1,seed,color,maia))
-            for x in f:x.result()
-    finally:maia.close()
+        with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_GAMES) as pool:
+            futures=[pool.submit(run_slot,slot) for slot in range(1,MAX_CONCURRENT_GAMES+1)]
+            for future in futures:future.result()
+    finally:
+        maia.close()
     summary=[]
-    for p in sorted(OUT.glob('game_*/status.json')):
+    for p in sorted(OUT.glob("game_*/status.json")):
         summary.append(json.loads(p.read_text()))
-    scored=[x for x in summary if x['status']=='finished' and x['chess_result']!='*']
-    results={'planned_full_book_paired_games':163046,
-             'next_opening_id':current_batch_start(),
-             'launched_games':len(summary),'completed_real_chess_games':len(scored),
-             'results_by_game':[{'id':x['game_id'],'result':x['chess_result']} for x in scored],
-             'games':summary}
-    atomic_write(OUT/'match_status.json',json.dumps(results,indent=2)+'\n')
-    log('MATCH_PILOT_CHECKPOINT',len(summary),'games',len(scored),'real chess results')
-if __name__=='__main__':main()
+    scored=[x for x in summary if x["status"]=="finished" and x["chess_result"]!="*"]
+    results={"planned_full_book_paired_games":2*len(seeds),
+             "assigned_games":len(summary),
+             "completed_real_chess_games":len(scored),
+             "results_by_game":[{"id":x["game_id"],"result":x["chess_result"]} for x in scored]}
+    atomic_write(OUT/"match_status.json",json.dumps(results,indent=2)+"\n")
+    log("MATCH_COMPLETE",len(scored),"real chess results")
+if __name__=="__main__":main()
