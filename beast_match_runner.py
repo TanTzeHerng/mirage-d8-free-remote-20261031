@@ -104,6 +104,7 @@ class Beast:
         threading.Thread(target=self._read,daemon=True).start()
         self._send('uci');self._expect(r'^uciok$',90)
         self._send('setoption name Threads value 1')
+        self._send('setoption name Temperature value 0')
         self._send('isready');self._expect(r'^readyok$',700)
         log('BEAST_READY', 'network', str(BEAST_NET), 'nodes_per_move=1', 'backend=blas', 'threads=1')
     def _read(self):
@@ -126,7 +127,7 @@ class Beast:
         raise TimeoutError('Beast no response '+pattern)
     def move(self,board):
         with self.lock:
-            # Full move history, not a static FEN: Beast 3's UCI history mode is enabled.
+            # Full move history, preserving castling, en passant and repetition.
             moves=' '.join(m.uci() for m in board.move_stack)
             self._send('position startpos moves '+moves)
             self._send('go nodes 1')
@@ -155,7 +156,7 @@ class MirageSession:
         atomic_write(wd/'book_moves.txt','\n'.join(moves)+'\n')
         b=chess.Board()
         for m in moves:b.push_uci(m)
-        mode='MIRAGE' if b.turn==mirage_color else 'MAIA'
+        mode='MIRAGE' if b.turn==mirage_color else 'MAIA'  # Native driver protocol keyword for external opponent
         atomic_write(wd/'start_mode.txt',mode+'\n')
         lua=(ROOT/'mirage_beast_game_driver.lua').read_text()
         assert '@@BASE@@' in lua
@@ -309,7 +310,7 @@ def play_game(gid,seed,color,beast):
                 else:
                     m=beast.move(board)
                     board.push(m)
-                    log('MAIA_MOVE',gid,m.uci())
+                    log('BEAST_MOVE',gid,m.uci())
                     if not board.outcome(claim_draw=True):
                         if m.promotion not in (None,chess.QUEEN):
                             raise RuntimeError('Need physical underpromotion input in Mirage '+m.uci())
