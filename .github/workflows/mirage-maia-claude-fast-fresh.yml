@@ -1,8 +1,6 @@
 name: Fresh Claude ultra-fast Mirage D8 vs Maia3 79M with live PGNs
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 */6 * * *'
 concurrency:
   group: fresh-claude-native-mirage-maia
   cancel-in-progress: false
