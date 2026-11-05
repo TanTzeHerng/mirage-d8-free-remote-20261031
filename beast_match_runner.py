@@ -176,10 +176,16 @@ class MirageSession:
         rows=s.split('\n')
         self.leftover=rows.pop()
         return rows
-    def await_mirage(self):
+    def await_mirage(self, on_progress=None):
+        # Native Mirage sends PROGRESS in *emulated* seconds, not wall time.
         while True:
             for line in self.events():
                 if line.startswith('LUA_ERROR'):raise RuntimeError(line)
+                if line.startswith('SEARCH_START ') and on_progress is not None:
+                    on_progress(0.0)
+                if line.startswith('PROGRESS ') and on_progress is not None:
+                    pm=re.match(r'^PROGRESS ([0-9.]+)(?: |$)',line)
+                    if pm:on_progress(float(pm.group(1)))
                 if line.startswith('MOVE '):
                     x=re.match(r'^MOVE ([a-h][1-8][a-h][1-8]) EMU ([0-9.]+)',line)
                     if not x:raise ValueError('Malformed Mirage move '+line)
@@ -202,7 +208,7 @@ class MirageSession:
 def result_state(board):
     o=board.outcome(claim_draw=True)
     return o.result() if o else '*'
-def write_state(gid,seed,board,color,error_count,status,error=None,mirage_thinks=None):
+def write_state(gid,seed,board,color,error_count,status,error=None,mirage_thinks=None,current_search_emu=None):
     wd=OUT/('game_%06d'%gid)
     wd.mkdir(parents=True,exist_ok=True)
     state={'game_id':gid,'opening_id':seed['id'],
@@ -215,6 +221,8 @@ def write_state(gid,seed,board,color,error_count,status,error=None,mirage_thinks
        'chess_result':result_state(board),
        'technical_error_count':error_count,'last_error':error,
        'last_mirage_emulated_seconds':mirage_thinks,
+       'current_mirage_search_emulated_seconds':current_search_emu,
+       'mirage_currently_searching':current_search_emu is not None,
        'time_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}
     atomic_write(wd/'status.json',json.dumps(state,indent=2)+'\n')
     pg=chess.pgn.Game.from_board(board)
@@ -296,7 +304,15 @@ def play_game(gid,seed,color,beast):
                     log('CHESS_RESULT',gid,result_state(board))
                     return
                 if board.turn==color:
-                    move,emusec=session.await_mirage()
+                    last_published_progress_at=[0.0]
+                    def show_live_emulated_time(emulated_seconds):
+                        now=time.monotonic()
+                        if emulated_seconds==0 or now-last_published_progress_at[0]>=4.0:
+                            write_state(gid,seed,board,color,errors,'active',
+                                        mirage_thinks=last_think,
+                                        current_search_emu=emulated_seconds)
+                            last_published_progress_at[0]=now
+                    move,emusec=session.await_mirage(on_progress=show_live_emulated_time)
                     m=chess.Move.from_uci(move)
                     if m not in board.legal_moves:
                         # Underpromotion is entered on hardware through piece replacement;
