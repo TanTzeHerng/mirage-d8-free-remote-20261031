@@ -1,0 +1,35 @@
+name: Independent audit of all Mirage Beast chess results
+on:
+  workflow_dispatch:
+jobs:
+  verify_published_results:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: audit
+      - uses: actions/checkout@v4
+        with:
+          ref: match-claude-beast
+          path: games
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent legal chess result verifier
+        run: python -m pip install python-chess
+      - name: Replay each game and audit legal chess outcomes and official score
+        run: |
+          cd games
+          python -u ../audit/beast_match/audit_published_results.py | tee ../audit/result_audit_stdout.log
+      - name: Save independent audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mirage-beast-independent-chess-result-audit
+          if-no-files-found: warn
+          retention-days: 90
+          path: |
+            games/beast_result_audit.json
+            audit/result_audit_stdout.log
