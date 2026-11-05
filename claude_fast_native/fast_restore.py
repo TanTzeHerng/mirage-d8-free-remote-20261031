@@ -71,6 +71,23 @@ def main():
         (wd / "current.pgn").write_text(pgn_raw, encoding="utf8")
         restored += 1
         print("RECOVERED_LIVE_GAME", gid, len(state["move_history_uci"]), flush=True)
+    scheduler_raw=get_live("live/scheduler.json")
+    if scheduler_raw:
+        candidate=json.loads(scheduler_raw)
+        next_id=int(candidate.get("next_game_id",0))
+        slots={str(k):int(v) for k,v in candidate.get("slots",{}).items()}
+        if (not 9<=next_id<=163047 or len(slots)>8 or
+                any(not 1<=int(k)<=8 or not 1<=v<=163046 for k,v in slots.items()) or
+                len(set(slots.values()))!=len(slots)):
+            raise RuntimeError("Published slot scheduler is invalid")
+        existing_file=DATA/"scheduler.json"
+        existing=json.loads(existing_file.read_text(encoding="utf8")) if existing_file.exists() else {}
+        newer=(next_id>int(existing.get("next_game_id",0)) or
+               (next_id==int(existing.get("next_game_id",0)) and
+                candidate.get("updated_utc","")>existing.get("updated_utc","")))
+        if newer:
+            existing_file.write_text(json.dumps(candidate,indent=2)+"\n",encoding="utf8")
+            print("LIVE_WORKER_SLOTS_RESTORED",slots,"next",next_id,flush=True)
     print("LIVE_CHECKPOINT_RESTORED", restored, "games", flush=True)
 
 if __name__ == "__main__":
