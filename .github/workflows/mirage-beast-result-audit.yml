@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - '.github/workflows/mirage-beast-result-audit.yml'
+  push:
+    paths:
+      - '.github/workflows/mirage-beast-result-audit.yml'
 jobs:
   verify_published_results:
     runs-on: ubuntu-24.04
