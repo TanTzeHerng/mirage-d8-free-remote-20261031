@@ -9,7 +9,6 @@ concurrency:
 jobs:
   resume:
     runs-on: ubuntu-24.04
-    timeout-minutes: 65
     permissions:
       contents: write
       actions: read
@@ -81,7 +80,6 @@ jobs:
       - name: Continue paired games from exact saved legal positions
         if: steps.restore.outputs.skip != 'true'
         env:
-          MATCH_BUDGET_SECONDS: '3200'
           MIRAGE_EMULATOR: /usr/games/mame
           HF_HOME: ${{ runner.temp }}/huggingface
           OMP_NUM_THREADS: '1'
