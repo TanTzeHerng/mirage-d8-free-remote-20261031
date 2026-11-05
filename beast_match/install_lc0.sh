@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Ubuntu 24.04 Actions no longer exposes a usable 'lc0' apt package.
+if [ -x "$GITHUB_WORKSPACE/engine_bin/lc0" ]; then
+  echo "CACHED_LC0_CPU_ALREADY_INSTALLED"
+  exit 0
+fi
 # Build the upstream pinned v0.32.1 with the CPU/OpenBLAS backend.
 sudo apt-get update -qq
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
