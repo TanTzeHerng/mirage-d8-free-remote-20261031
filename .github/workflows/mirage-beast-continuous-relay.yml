@@ -1,0 +1,26 @@
+name: Mirage Beast continuous match relay
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Fresh Claude ultra-fast Mirage D8 vs Beast 1-node with live PGNs
+    types: [completed]
+  schedule:
+    - cron: '*/10 * * * *'
+concurrency:
+  group: mirage-beast-autonomous-relay
+  cancel-in-progress: false
+jobs:
+  relay:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resume or prequeue Mirage-Beast until all 163046 chess results exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEAST_MATCH_PAUSED: ${{ vars.BEAST_MATCH_PAUSED }}
+        run: python -u beast_match/continuous_relay.py
