@@ -1,0 +1,48 @@
+name: Validate Claude native ultra-fast Mirage D8
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/mirage-native-fast-preflight.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore original Mirage G79 firmware (not published)
+        env:
+          ROM_B64: ${{ secrets.MIRAGE_ROM_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$ROM_B64"
+          mkdir -p mame/roms
+          printf '%s' "$ROM_B64" | base64 -d > mame/roms/mmirage.zip
+          python - <<'PY'
+          import zipfile, pathlib
+          z=zipfile.ZipFile('mame/roms/mmirage.zip')
+          matches=[x for x in z.infolist() if x.file_size==32768 and 'g79' in x.filename.lower()]
+          print('G79_MATCHED_MEMBERS',[(x.filename,x.file_size) for x in matches])
+          assert len(matches)==1, 'Original G79 ROM not uniquely present'
+          pathlib.Path('claude_fast_native/g79').write_bytes(z.read(matches[0]))
+          PY
+      - name: Compile Claude's native CPU core and full-game controller
+        run: |
+          g++ -O3 -march=native -std=gnu++17 -pthread \
+            -o claude_fast_native/mm_game_driver \
+            claude_fast_native/mm_game_driver.cpp claude_fast_native/mm_core.cpp
+          test -x claude_fast_native/mm_game_driver
+      - name: Check real D8 99:99 and opening replay without scoring
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/claude-fast-test
+          printf 'e2e4\ne7e5\n' > /tmp/claude-fast-test/book_moves.txt
+          printf 'MIRAGE\n' > /tmp/claude-fast-test/start_mode.txt
+          printf '' > /tmp/claude-fast-test/job.txt
+          timeout 35s claude_fast_native/mm_game_driver /tmp/claude-fast-test "$PWD/claude_fast_native/g79" > /tmp/claude-fast-test/stdout.log 2>&1 || rc=$?
+          cat /tmp/claude-fast-test/stdout.log | tail -40
+          grep -q "LEVEL D8 MMSS 9999 NATIVE_CLAUDE" /tmp/claude-fast-test/worker.out
+          grep -q "BOOK_DONE 2" /tmp/claude-fast-test/worker.out
+          grep -q "SEARCH_START" /tmp/claude-fast-test/worker.out
+          echo "CLAUDE_NATIVE_D8_OPENING_AND_SEARCH_VALIDATED"
