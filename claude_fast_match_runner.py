@@ -317,6 +317,7 @@ def play_game(gid,seed,color,maia):
             break
         except Exception as e:
             errors+=1
+            recovery_failure=e
             log("TECHNICAL_RESET",gid,"attempt",errors,repr(e))
             write_state(gid,seed,board,color,errors,"recovering",str(e),last_think)
             with (wd/"technical_errors.log").open("a",encoding="utf8") as file:
@@ -331,7 +332,7 @@ def play_game(gid,seed,color,maia):
         # Game-specific reset only: all other Mirage processes and Maia keep running.
         # Preserve the firmware's latest CPU/RAM/search diagnostic BEFORE fresh replay.
         try:
-            hard_recovery_archive(gid,board,errors,e)
+            hard_recovery_archive(gid,board,errors,recovery_failure)
         except Exception as archive_error:
             log("GAME_RECOVERY_ARCHIVE_FAILED",gid,repr(archive_error))
         # No chess result is assigned for an emulator or controller problem.
