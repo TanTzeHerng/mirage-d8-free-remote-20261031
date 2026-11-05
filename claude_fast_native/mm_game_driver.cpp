@@ -29,8 +29,10 @@ static bool is_move(const std::string& s) {
   return file(s[0])&&rank(s[1])&&file(s[2])&&rank(s[3]);
 }
 static void queue_move(Harness& h,const std::string& m,bool calculate) {
-  if(m.size()!=4)throw std::runtime_error("Invalid UCI "+m);
-  for(char c:m){
+  if(m.size()!=4 && !(m.size()==5 && (m[4]=='q'||m[4]=='Q'))) throw std::runtime_error("Unsupported UCI promotion "+m);
+  // Mirage receives four coordinate keys; a promoted queen uses normal keypad input.
+  // UCI's fifth character is retained by the chess arbiter.
+  for(char c:m.substr(0,4)){
     if(c>='a'&&c<='h')c=char(c-'a'+'A');
     h.key(std::string(1,c));
   }
