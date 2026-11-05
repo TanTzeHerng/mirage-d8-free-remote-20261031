@@ -53,9 +53,51 @@ int main(int argc,char** argv) {
     std::vector<std::string> mode=lines(base/"start_mode.txt");
     if(mode.size()!=1 || (mode[0]!="MIRAGE"&&mode[0]!="MAIA"))throw std::runtime_error("Invalid start_mode");
     bool ready=false,searching=false;
-    double started=0,stable_since=0,last_prog=0,last_poll=0;
+    double started=0,stable_since=0,last_prog=0,last_poll=0,last_snapshot=-1;
     std::string last_display;
     int next_cmd=1;
+    // A durable CPU/RAM/timer forensic snapshot is written while the original
+    // Mirage ROM is searching. We DO NOT deserialize C++ callbacks from it:
+    // after a hard reset we replay the full legal game and SEARCH AFRESH.
+    auto save_native_search=[&](double elapsed,const std::string& display) {
+      try {
+        fs::path tmp=base/"native_search_state.bin.tmp";
+        std::ofstream out(tmp,std::ios::binary|std::ios::trunc);
+        if(!out)throw std::runtime_error("Cannot save native search CPU state");
+        const char magic[8]={'M','R','G','C','P','U','0','1'};
+        out.write(magic,sizeof(magic));
+        auto append=[&](const auto& field) {
+          out.write(reinterpret_cast<const char*>(&field),sizeof(field));
+        };
+        append(m.R); append(m.P); append(m.X); append(m.D); append(m.B); append(m.T);
+        append(m.I); append(m.N); append(m.DF); append(m.IE); append(m.Q);
+        append(m.op); append(m.state); append(m.mode); append(m.pmode);
+        append(m.wait_line); append(m.clear_line); append(m.EF);
+        append(m.irq); append(m.irq_curstate); append(m.icount);
+        append(m.cycles_running); append(m.cycles_stolen);
+        append(m.mem); append(m.keys); append(m.keys_pending);
+        append(m.m_reset); append(m.kp_mux); append(m.digit_data);
+        append(m.digit_idx); append(m.strobe); append(m.digits);
+        append(m.lcd_updates); append(m.io_out); append(m.io_in);
+        append(m.rand_seed); append(m.gec_calls); append(m.ext_count);
+        append(m.basetime); append(m.localtime); append(m.totalcycles);
+        append(m.timers); append(m.seqctr); append(m.executing);
+        append(m.irq_taken);
+        out.close();
+        fs::rename(tmp,base/"native_search_state.bin");
+        std::ofstream meta(base/"native_search_state.json.tmp");
+        meta<<"{\"format\":\"MRGCPU01\",\"contains\":\"registers, full firmware-visible memory, timers, keypad and RNG\","
+            <<"\"emulated_search_seconds\":"<<elapsed<<","
+            <<"\"cycle_count\":"<<m.totalcycles<<","
+            <<"\"display\":\""<<display<<"\","
+            <<"\"can_resume_exact_search\":false,"
+            <<"\"hard_recovery\":\"preserve search snapshot, replay entire game, start fresh search\"}\n";
+        meta.close();
+        fs::rename(base/"native_search_state.json.tmp",base/"native_search_state.json");
+      }catch(const std::exception& e) {
+        std::cerr<<"NATIVE_SNAPSHOT_WARN "<<e.what()<<"\n";
+      }
+    };
     Harness h(m);
     h.wait(1);h.key("CL");h.key("LEV");h.key("D");h.key("8");h.key("ENT");
     for(char c:std::string("9999"))h.key(std::string(1,c));
@@ -72,7 +114,7 @@ int main(int argc,char** argv) {
     if(mode[0]=="MIRAGE"){
       h.key("STA");
       h.call([&](Machine&){
-        started=now();last_prog=started;searching=true;
+        started=now();last_prog=started;last_snapshot=-1;searching=true;
         emit("SEARCH_START "+std::to_string(started));
       });
     }else{
@@ -85,6 +127,10 @@ int main(int argc,char** argv) {
       if(!ready||!h.idle)continue;
       if(searching) {
         std::string d=display_str(m);
+        if(last_snapshot<0 || t-last_snapshot>=30.0) {
+          save_native_search(t-started,d);
+          last_snapshot=t;
+        }
         if(is_move(d)) {
           if(d!=last_display){last_display=d;stable_since=t;}
           else if(t-stable_since>=2.1){
@@ -107,7 +153,7 @@ int main(int argc,char** argv) {
         queue_move(h,move,true);
         h.call([&,move](Machine&){
           emit("OPP_ACK "+move);
-          started=now();last_prog=started;last_display.clear();stable_since=started;searching=true;
+          started=now();last_prog=started;last_snapshot=-1;last_display.clear();stable_since=started;searching=true;
           emit("SEARCH_START "+std::to_string(started));
         });
         h.resume();
