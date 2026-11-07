@@ -1,5 +1,5 @@
 {
-  "published_utc": "2026-11-07T15:07:48.815650+00:00",
+  "published_utc": "2026-11-07T15:08:22.013053+00:00",
   "source_run_id": "42364262334",
   "games": [
     {
@@ -3617,7 +3617,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 171,
-      "last_move_utc": "2026-11-07T15:07:24Z",
+      "last_move_utc": "2026-11-07T15:07:54Z",
       "pgn": "live/game_000402.pgn"
     },
     {
@@ -6326,7 +6326,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 152,
-      "last_move_utc": "2026-11-07T15:07:21Z",
+      "last_move_utc": "2026-11-07T15:08:06Z",
       "pgn": "live/game_000703.pgn"
     },
     {
@@ -9980,7 +9980,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 84,
-      "last_move_utc": "2026-11-07T15:07:38Z",
+      "last_move_utc": "2026-11-07T15:08:08Z",
       "pgn": "live/game_001109.pgn"
     },
     {
@@ -11752,8 +11752,8 @@
       "opening_id": 653,
       "status": "active",
       "result": "*",
-      "total_plies": 171,
-      "last_move_utc": "2026-11-07T15:07:37Z",
+      "total_plies": 175,
+      "last_move_utc": "2026-11-07T15:08:09Z",
       "pgn": "live/game_001306.pgn"
     },
     {
@@ -11797,17 +11797,17 @@
       "opening_id": 656,
       "status": "active",
       "result": "*",
-      "total_plies": 110,
-      "last_move_utc": "2026-11-07T15:07:35Z",
+      "total_plies": 114,
+      "last_move_utc": "2026-11-07T15:08:13Z",
       "pgn": "live/game_001311.pgn"
     },
     {
       "game_id": 1312,
       "opening_id": 656,
-      "status": "active",
-      "result": "*",
-      "total_plies": 93,
-      "last_move_utc": "2026-11-07T15:07:37Z",
+      "status": "finished",
+      "result": "1-0",
+      "total_plies": 99,
+      "last_move_utc": "2026-11-07T15:07:41Z",
       "pgn": "live/game_001312.pgn"
     },
     {
@@ -11815,8 +11815,8 @@
       "opening_id": 657,
       "status": "active",
       "result": "*",
-      "total_plies": 42,
-      "last_move_utc": "2026-11-07T15:07:36Z",
+      "total_plies": 48,
+      "last_move_utc": "2026-11-07T15:08:11Z",
       "pgn": "live/game_001313.pgn"
     },
     {
@@ -11824,9 +11824,18 @@
       "opening_id": 657,
       "status": "active",
       "result": "*",
-      "total_plies": 19,
-      "last_move_utc": "2026-11-07T15:07:37Z",
+      "total_plies": 23,
+      "last_move_utc": "2026-11-07T15:08:11Z",
       "pgn": "live/game_001314.pgn"
+    },
+    {
+      "game_id": 1315,
+      "opening_id": 658,
+      "status": "active",
+      "result": "*",
+      "total_plies": 20,
+      "last_move_utc": "2026-11-07T15:08:13Z",
+      "pgn": "live/game_001315.pgn"
     }
   ],
   "slots": {
@@ -11835,9 +11844,9 @@
     "5": 1109,
     "2": 1306,
     "8": 1311,
-    "7": 1312,
     "3": 1313,
-    "4": 1314
+    "4": 1314,
+    "7": 1315
   },
   "score": {
     "mirage_wins": 464,
@@ -11850,28 +11859,28 @@
   },
   "live_search": {
     "1306": {
-      "emulated_seconds": 1860.0,
-      "observed_utc": "2026-11-07T15:07:39.563018+00:00",
+      "emulated_seconds": 2940.0,
+      "observed_utc": "2026-11-07T15:08:13.557739+00:00",
       "source": "native_mirage_cpu_snapshot"
     },
     "1311": {
-      "emulated_seconds": 1410.0,
-      "observed_utc": "2026-11-07T15:07:39.682017+00:00",
-      "source": "native_mirage_cpu_snapshot"
-    },
-    "1312": {
-      "emulated_seconds": 6000.0,
-      "observed_utc": "2026-11-07T15:07:39.748869+00:00",
+      "emulated_seconds": 1500.0,
+      "observed_utc": "2026-11-07T15:08:13.609739+00:00",
       "source": "native_mirage_cpu_snapshot"
     },
     "1313": {
-      "emulated_seconds": 6000.0,
-      "observed_utc": "2026-11-07T15:07:39.682017+00:00",
+      "emulated_seconds": 870.0,
+      "observed_utc": "2026-11-07T15:08:13.645739+00:00",
       "source": "native_mirage_cpu_snapshot"
     },
     "1314": {
-      "emulated_seconds": 3780.0,
-      "observed_utc": "2026-11-07T15:07:39.682017+00:00",
+      "emulated_seconds": 4500.0,
+      "observed_utc": "2026-11-07T15:08:13.645739+00:00",
+      "source": "native_mirage_cpu_snapshot"
+    },
+    "1315": {
+      "emulated_seconds": 30.0,
+      "observed_utc": "2026-11-07T15:08:13.600739+00:00",
       "source": "native_mirage_cpu_snapshot"
     }
   },
@@ -11989,6 +11998,6 @@
       "time_utc": "2026-11-07T14:36:34Z"
     }
   ],
-  "assigned_game_count": 1314,
+  "assigned_game_count": 1315,
   "completed_chess_games": 1307
 }
