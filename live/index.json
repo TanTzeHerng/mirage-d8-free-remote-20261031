@@ -1,5 +1,5 @@
 {
-  "published_utc": "2026-11-08T22:19:05.935911+00:00",
+  "published_utc": "2026-11-08T22:19:43.047941+00:00",
   "source_run_id": "42502821638",
   "games": [
     {
@@ -3617,7 +3617,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 171,
-      "last_move_utc": "2026-11-08T22:18:44Z",
+      "last_move_utc": "2026-11-08T22:19:14Z",
       "pgn": "live/game_000402.pgn"
     },
     {
@@ -6326,7 +6326,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 152,
-      "last_move_utc": "2026-11-08T22:18:41Z",
+      "last_move_utc": "2026-11-08T22:19:11Z",
       "pgn": "live/game_000703.pgn"
     },
     {
@@ -9980,7 +9980,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 84,
-      "last_move_utc": "2026-11-08T22:18:44Z",
+      "last_move_utc": "2026-11-08T22:19:14Z",
       "pgn": "live/game_001109.pgn"
     },
     {
@@ -13976,7 +13976,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 152,
-      "last_move_utc": "2026-11-08T22:18:40Z",
+      "last_move_utc": "2026-11-08T22:19:25Z",
       "pgn": "live/game_001553.pgn"
     },
     {
@@ -17162,7 +17162,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 152,
-      "last_move_utc": "2026-11-08T22:18:44Z",
+      "last_move_utc": "2026-11-08T22:19:30Z",
       "pgn": "live/game_001907.pgn"
     },
     {
@@ -17944,8 +17944,8 @@
       "opening_id": 997,
       "status": "active",
       "result": "*",
-      "total_plies": 55,
-      "last_move_utc": "2026-11-08T22:18:55Z",
+      "total_plies": 61,
+      "last_move_utc": "2026-11-08T22:19:30Z",
       "pgn": "live/game_001994.pgn"
     },
     {
@@ -17953,17 +17953,17 @@
       "opening_id": 998,
       "status": "active",
       "result": "*",
-      "total_plies": 54,
-      "last_move_utc": "2026-11-08T22:18:52Z",
+      "total_plies": 62,
+      "last_move_utc": "2026-11-08T22:19:31Z",
       "pgn": "live/game_001995.pgn"
     },
     {
       "game_id": 1996,
       "opening_id": 998,
-      "status": "active",
-      "result": "*",
-      "total_plies": 45,
-      "last_move_utc": "2026-11-08T22:18:55Z",
+      "status": "finished",
+      "result": "0-1",
+      "total_plies": 58,
+      "last_move_utc": "2026-11-08T22:19:22Z",
       "pgn": "live/game_001996.pgn"
     }
   ],
@@ -17975,35 +17975,37 @@
     "4": 1907,
     "2": 1994,
     "7": 1995,
-    "8": 1996
+    "8": 1997
   },
   "score": {
-    "mirage_wins": 708,
+    "mirage_wins": 709,
     "beast_wins": 1060,
     "draws": 220,
-    "completed_chess_games": 1988,
-    "mirage_points": 818.0,
+    "completed_chess_games": 1989,
+    "mirage_points": 819.0,
     "beast_points": 1170.0,
     "duplicate_results_included": true
   },
   "live_search": {
     "1994": {
-      "emulated_seconds": 240.0,
-      "observed_utc": "2026-11-08T22:18:56.008619+00:00",
+      "emulated_seconds": 3660.0,
+      "observed_utc": "2026-11-08T22:19:33.013354+00:00",
       "source": "native_mirage_cpu_snapshot"
     },
     "1995": {
-      "emulated_seconds": 4950.0,
-      "observed_utc": "2026-11-08T22:18:56.021619+00:00",
-      "source": "native_mirage_cpu_snapshot"
-    },
-    "1996": {
-      "emulated_seconds": 5220.0,
-      "observed_utc": "2026-11-08T22:18:56.010619+00:00",
+      "emulated_seconds": 2940.0,
+      "observed_utc": "2026-11-08T22:19:32.977354+00:00",
       "source": "native_mirage_cpu_snapshot"
     }
   },
   "recent_results": [
+    {
+      "game_id": 1996,
+      "result": "0-1",
+      "mirage_color": "black",
+      "opening_id": 998,
+      "time_utc": "2026-11-08T22:19:22Z"
+    },
     {
       "game_id": 1993,
       "result": "1-0",
@@ -18108,15 +18110,8 @@
       "mirage_color": "black",
       "opening_id": 990,
       "time_utc": "2026-11-08T21:43:48Z"
-    },
-    {
-      "game_id": 1979,
-      "result": "1-0",
-      "mirage_color": "white",
-      "opening_id": 990,
-      "time_utc": "2026-11-08T21:40:27Z"
     }
   ],
-  "assigned_game_count": 1996,
-  "completed_chess_games": 1988
+  "assigned_game_count": 1997,
+  "completed_chess_games": 1989
 }
