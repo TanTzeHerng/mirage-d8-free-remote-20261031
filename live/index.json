@@ -1,5 +1,5 @@
 {
-  "published_utc": "2026-11-10T01:31:14.094301+00:00",
+  "published_utc": "2026-11-10T01:32:10.237775+00:00",
   "source_run_id": "42704047334",
   "games": [
     {
@@ -3617,7 +3617,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 171,
-      "last_move_utc": "2026-11-10T01:30:24Z",
+      "last_move_utc": "2026-11-10T01:31:25Z",
       "pgn": "live/game_000402.pgn"
     },
     {
@@ -6326,7 +6326,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 152,
-      "last_move_utc": "2026-11-10T01:30:33Z",
+      "last_move_utc": "2026-11-10T01:31:33Z",
       "pgn": "live/game_000703.pgn"
     },
     {
@@ -9980,7 +9980,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 84,
-      "last_move_utc": "2026-11-10T01:30:31Z",
+      "last_move_utc": "2026-11-10T01:31:31Z",
       "pgn": "live/game_001109.pgn"
     },
     {
@@ -13976,7 +13976,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 152,
-      "last_move_utc": "2026-11-10T01:30:35Z",
+      "last_move_utc": "2026-11-10T01:31:36Z",
       "pgn": "live/game_001553.pgn"
     },
     {
@@ -17162,7 +17162,7 @@
       "status": "recovering",
       "result": "*",
       "total_plies": 152,
-      "last_move_utc": "2026-11-10T01:30:48Z",
+      "last_move_utc": "2026-11-10T01:31:33Z",
       "pgn": "live/game_001907.pgn"
     },
     {
@@ -20840,10 +20840,10 @@
     {
       "game_id": 2316,
       "opening_id": 1158,
-      "status": "active",
-      "result": "*",
-      "total_plies": 111,
-      "last_move_utc": "2026-11-10T01:30:51Z",
+      "status": "finished",
+      "result": "1-0",
+      "total_plies": 113,
+      "last_move_utc": "2026-11-10T01:31:00Z",
       "pgn": "live/game_002316.pgn"
     },
     {
@@ -20869,8 +20869,8 @@
       "opening_id": 1160,
       "status": "active",
       "result": "*",
-      "total_plies": 36,
-      "last_move_utc": "2026-11-10T01:30:53Z",
+      "total_plies": 48,
+      "last_move_utc": "2026-11-10T01:31:50Z",
       "pgn": "live/game_002319.pgn"
     },
     {
@@ -20878,9 +20878,18 @@
       "opening_id": 1160,
       "status": "active",
       "result": "*",
-      "total_plies": 23,
-      "last_move_utc": "2026-11-10T01:30:51Z",
+      "total_plies": 31,
+      "last_move_utc": "2026-11-10T01:31:47Z",
       "pgn": "live/game_002320.pgn"
+    },
+    {
+      "game_id": 2321,
+      "opening_id": 1161,
+      "status": "active",
+      "result": "*",
+      "total_plies": 20,
+      "last_move_utc": "2026-11-10T01:31:47Z",
+      "pgn": "live/game_002321.pgn"
     }
   ],
   "slots": {
@@ -20889,37 +20898,44 @@
     "5": 1109,
     "3": 1553,
     "4": 1907,
-    "8": 2316,
     "7": 2319,
-    "2": 2320
+    "2": 2320,
+    "8": 2321
   },
   "score": {
     "mirage_wins": 827,
     "beast_wins": 1231,
-    "draws": 255,
-    "completed_chess_games": 2313,
-    "mirage_points": 954.5,
-    "beast_points": 1358.5,
+    "draws": 256,
+    "completed_chess_games": 2314,
+    "mirage_points": 955.0,
+    "beast_points": 1359.0,
     "duplicate_results_included": true
   },
   "live_search": {
-    "2316": {
-      "emulated_seconds": 4170.0,
-      "observed_utc": "2026-11-10T01:30:54.670955+00:00",
-      "source": "native_mirage_cpu_snapshot"
-    },
     "2319": {
-      "emulated_seconds": 510.0,
-      "observed_utc": "2026-11-10T01:30:54.752955+00:00",
+      "emulated_seconds": 3390.0,
+      "observed_utc": "2026-11-10T01:31:51.013913+00:00",
       "source": "native_mirage_cpu_snapshot"
     },
     "2320": {
-      "emulated_seconds": 1230.0,
-      "observed_utc": "2026-11-10T01:30:54.691955+00:00",
+      "emulated_seconds": 2790.0,
+      "observed_utc": "2026-11-10T01:31:50.992913+00:00",
+      "source": "native_mirage_cpu_snapshot"
+    },
+    "2321": {
+      "emulated_seconds": 1950.0,
+      "observed_utc": "2026-11-10T01:31:51.029913+00:00",
       "source": "native_mirage_cpu_snapshot"
     }
   },
   "recent_results": [
+    {
+      "game_id": 2319,
+      "result": "1/2-1/2",
+      "mirage_color": "white",
+      "opening_id": 1160,
+      "time_utc": "2026-11-10T01:31:58Z"
+    },
     {
       "game_id": 2316,
       "result": "1-0",
@@ -21024,15 +21040,8 @@
       "mirage_color": "white",
       "opening_id": 1153,
       "time_utc": "2026-11-10T00:36:08Z"
-    },
-    {
-      "game_id": 2304,
-      "result": "1-0",
-      "mirage_color": "black",
-      "opening_id": 1152,
-      "time_utc": "2026-11-10T00:28:46Z"
     }
   ],
-  "assigned_game_count": 2320,
-  "completed_chess_games": 2313
+  "assigned_game_count": 2321,
+  "completed_chess_games": 2314
 }
